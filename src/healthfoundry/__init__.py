@@ -36,6 +36,7 @@ from healthfoundry.domain.assessment import (
     HealthAssessment,
     HealthAssessmentId,
 )
+from healthfoundry.domain.timeline import TimelineEvent, TimelineEventId
 from healthfoundry.config import (
     HierarchyConfig,
     PopulationConfig,
@@ -61,6 +62,16 @@ from healthfoundry.services.assessment_laboratory_workflow import (
 from healthfoundry.services.assessment_runner import AssessmentRunner
 from healthfoundry.services.export import WorldJsonExporter
 from healthfoundry.services.sql_export import WorldSqlExporter
+from healthfoundry.services.scenario import (
+    ActiveEmployeesSelector,
+    AfterEvent,
+    AllPeopleSelector,
+    PopulationSelector,
+    ScenarioEngine,
+    ScenarioRule,
+    Schedule,
+)
+from healthfoundry.services.scenario_applier import ScenarioEventApplier
 
 __all__ = [
     "Organization",
@@ -94,6 +105,8 @@ __all__ = [
     "AssessmentStatus",
     "HealthAssessment",
     "HealthAssessmentId",
+    "TimelineEvent",
+    "TimelineEventId",
     "SimulationConfig",
     "HierarchyConfig",
     "PopulationConfig",
@@ -113,4 +126,12 @@ __all__ = [
     "AssessmentRunner",
     "WorldJsonExporter",
     "WorldSqlExporter",
+    "ActiveEmployeesSelector",
+    "AfterEvent",
+    "AllPeopleSelector",
+    "PopulationSelector",
+    "ScenarioEngine",
+    "ScenarioRule",
+    "Schedule",
+    "ScenarioEventApplier",
 ]

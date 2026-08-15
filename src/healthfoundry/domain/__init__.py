@@ -36,6 +36,7 @@ from healthfoundry.domain.assessment import (
     HealthAssessment,
     HealthAssessmentId,
 )
+from healthfoundry.domain.timeline import TimelineEvent, TimelineEventId
 
 __all__ = [
     "Organization",
@@ -69,4 +70,6 @@ __all__ = [
     "AssessmentStatus",
     "HealthAssessment",
     "HealthAssessmentId",
+    "TimelineEvent",
+    "TimelineEventId",
 ]

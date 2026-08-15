@@ -20,6 +20,16 @@ from healthfoundry.services.assessment_laboratory_workflow import (
 from healthfoundry.services.assessment_runner import AssessmentRunner
 from healthfoundry.services.export import WorldJsonExporter
 from healthfoundry.services.sql_export import WorldSqlExporter
+from healthfoundry.services.scenario import (
+    ActiveEmployeesSelector,
+    AfterEvent,
+    AllPeopleSelector,
+    PopulationSelector,
+    ScenarioEngine,
+    ScenarioRule,
+    Schedule,
+)
+from healthfoundry.services.scenario_applier import ScenarioEventApplier
 
 __all__ = [
     "OrganizationHierarchyGenerator",
@@ -36,6 +46,14 @@ __all__ = [
     "AssessmentRunner",
     "WorldJsonExporter",
     "WorldSqlExporter",
+    "ActiveEmployeesSelector",
+    "AfterEvent",
+    "AllPeopleSelector",
+    "PopulationSelector",
+    "ScenarioEngine",
+    "ScenarioRule",
+    "Schedule",
+    "ScenarioEventApplier",
     "RandomSource",
     "WorldBuilder",
 ]
