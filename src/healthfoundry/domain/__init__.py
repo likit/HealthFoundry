@@ -15,6 +15,25 @@ from healthfoundry.domain.workforce import (
     WorkforceEventType,
 )
 from healthfoundry.domain.world import World
+from healthfoundry.domain.laboratory import (
+    LaboratoryOrder,
+    LaboratoryOrderId,
+    LaboratoryPanel,
+    LaboratoryPanelId,
+    LaboratoryTestDefinition,
+    LaboratoryTestDefinitionId,
+    LaboratoryObservation,
+    LaboratoryObservationId,
+    Specimen,
+    SpecimenId,
+)
+from healthfoundry.domain.health import HealthState, HealthTrajectory
+from healthfoundry.domain.assessment import (
+    AssessmentContext,
+    AssessmentStatus,
+    HealthAssessment,
+    HealthAssessmentId,
+)
 
 __all__ = [
     "Organization",
@@ -30,4 +49,20 @@ __all__ = [
     "WorkforceEventId",
     "WorkforceEventType",
     "World",
+    "LaboratoryOrder",
+    "LaboratoryOrderId",
+    "LaboratoryPanel",
+    "LaboratoryPanelId",
+    "LaboratoryTestDefinition",
+    "LaboratoryTestDefinitionId",
+    "LaboratoryObservation",
+    "LaboratoryObservationId",
+    "Specimen",
+    "SpecimenId",
+    "HealthState",
+    "HealthTrajectory",
+    "AssessmentContext",
+    "AssessmentStatus",
+    "HealthAssessment",
+    "HealthAssessmentId",
 ]

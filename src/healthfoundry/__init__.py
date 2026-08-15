@@ -15,10 +15,47 @@ from healthfoundry.domain.workforce import (
     WorkforceEventType,
 )
 from healthfoundry.domain.world import World
-from healthfoundry.config import HierarchyConfig, SimulationConfig
+from healthfoundry.domain.laboratory import (
+    LaboratoryOrder,
+    LaboratoryOrderId,
+    LaboratoryPanel,
+    LaboratoryPanelId,
+    LaboratoryTestDefinition,
+    LaboratoryTestDefinitionId,
+    LaboratoryObservation,
+    LaboratoryObservationId,
+    Specimen,
+    SpecimenId,
+)
+from healthfoundry.domain.health import HealthState, HealthTrajectory
+from healthfoundry.domain.assessment import (
+    AssessmentContext,
+    AssessmentStatus,
+    HealthAssessment,
+    HealthAssessmentId,
+)
+from healthfoundry.config import (
+    HierarchyConfig,
+    PopulationConfig,
+    SimulationConfig,
+    WorkforceConfig,
+)
 from healthfoundry.services.randomness import RandomSource
 from healthfoundry.services.hierarchy_generator import OrganizationHierarchyGenerator
 from healthfoundry.services.world_builder import WorldBuilder
+from healthfoundry.services.person_generator import PersonGenerator
+from healthfoundry.services.employment_generator import EmploymentGenerator
+from healthfoundry.services.workforce_simulator import WorkforceSimulator
+from healthfoundry.services.laboratory_order_generator import (
+    OrderGenerator,
+    RandomOrderGenerator,
+    RuleBasedOrderGenerator,
+)
+from healthfoundry.services.laboratory_observation_generator import LaboratoryObservationGenerator
+from healthfoundry.services.assessment_laboratory_workflow import (
+    AssessmentLaboratoryOutput,
+    AssessmentLaboratoryWorkflow,
+)
 
 __all__ = [
     "Organization",
@@ -34,9 +71,36 @@ __all__ = [
     "WorkforceEventId",
     "WorkforceEventType",
     "World",
+    "LaboratoryOrder",
+    "LaboratoryOrderId",
+    "LaboratoryPanel",
+    "LaboratoryPanelId",
+    "LaboratoryTestDefinition",
+    "LaboratoryTestDefinitionId",
+    "LaboratoryObservation",
+    "LaboratoryObservationId",
+    "Specimen",
+    "SpecimenId",
+    "HealthState",
+    "HealthTrajectory",
+    "AssessmentContext",
+    "AssessmentStatus",
+    "HealthAssessment",
+    "HealthAssessmentId",
     "SimulationConfig",
     "HierarchyConfig",
+    "PopulationConfig",
+    "WorkforceConfig",
     "RandomSource",
     "OrganizationHierarchyGenerator",
     "WorldBuilder",
+    "PersonGenerator",
+    "EmploymentGenerator",
+    "WorkforceSimulator",
+    "OrderGenerator",
+    "RandomOrderGenerator",
+    "RuleBasedOrderGenerator",
+    "LaboratoryObservationGenerator",
+    "AssessmentLaboratoryOutput",
+    "AssessmentLaboratoryWorkflow",
 ]

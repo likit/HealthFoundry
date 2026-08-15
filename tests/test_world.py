@@ -3,6 +3,9 @@ from datetime import date
 import pytest
 
 from healthfoundry import (
+    AssessmentContext,
+    AssessmentLaboratoryWorkflow,
+    AssessmentStatus,
     EmploymentEpisode,
     Organization,
     OrganizationHierarchy,
@@ -10,6 +13,10 @@ from healthfoundry import (
     Person,
     WorkforceEvent,
     World,
+    LaboratoryPanel,
+    LaboratoryTestDefinition,
+    RandomSource,
+    HealthAssessment,
 )
 
 
@@ -63,3 +70,32 @@ def test_world_rejects_episode_for_unknown_person() -> None:
     with pytest.raises(ValueError, match="must reference a person"):
         world.add_employment_episode(episode)
 
+
+def test_world_can_store_assessment_laboratory_workflow() -> None:
+    organization = Organization.create("North Valley Hospital")
+    person = Person.create("Ada", "Lovelace")
+    assessment = HealthAssessment.create(
+        person.id,
+        organization.id,
+        date(2026, 1, 1),
+        AssessmentContext.PREVENTIVE,
+        AssessmentStatus.COMPLETED,
+    )
+    definition = LaboratoryTestDefinition.create("GLU", "Glucose", "serum", "mg/dL")
+    panel = LaboratoryPanel.create("ANNUAL", "Annual assessment", (definition.id,))
+    output = AssessmentLaboratoryWorkflow(RandomSource(42)).run(
+        assessment, panel, (definition,), {"GLU": (100.0, 10.0)}
+    )
+    world = (
+        World.empty()
+        .add_organization(organization)
+        .add_person(person)
+        .add_assessment(assessment)
+        .add_test_definition(definition)
+        .add_laboratory_panel(panel)
+        .add_laboratory_order(output.orders[0])
+        .add_specimen(output.specimens[0])
+        .add_laboratory_observation(output.observations[0])
+    )
+
+    assert len(world.laboratory_observations) == 1

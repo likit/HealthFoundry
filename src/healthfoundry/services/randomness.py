@@ -24,6 +24,16 @@ class RandomSource:
 
         return self._generator.randint(minimum, maximum)
 
+    def probability(self) -> float:
+        """Return a reproducible value in the half-open interval [0, 1)."""
+
+        return self._generator.random()
+
+    def normal(self, mean: float, standard_deviation: float) -> float:
+        """Return a reproducible value from a normal distribution."""
+
+        return self._generator.gauss(mean, standard_deviation)
+
     def choose(self, values: Sequence[ValueT]) -> ValueT:
         """Return a reproducible value from a non-empty sequence."""
 

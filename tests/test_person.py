@@ -1,13 +1,16 @@
+from datetime import date
+
 import pytest
 
 from healthfoundry import Person, PersonId
 
 
 def test_person_creation_and_full_name() -> None:
-    person = Person.create("Ada", "Lovelace")
+    person = Person.create("Ada", "Lovelace", date(1815, 12, 10))
 
     assert isinstance(person.id, PersonId)
     assert person.full_name == "Ada Lovelace"
+    assert person.date_of_birth == date(1815, 12, 10)
 
 
 @pytest.mark.parametrize(
@@ -24,4 +27,3 @@ def test_person_rejects_blank_names(
 ) -> None:
     with pytest.raises(ValueError, match=message):
         Person.create(given_name, family_name)
-
