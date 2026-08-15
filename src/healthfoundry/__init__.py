@@ -15,7 +15,10 @@ from healthfoundry.domain.workforce import (
     WorkforceEventType,
 )
 from healthfoundry.domain.world import World
-from healthfoundry.config import SimulationConfig
+from healthfoundry.config import HierarchyConfig, SimulationConfig
+from healthfoundry.services.randomness import RandomSource
+from healthfoundry.services.hierarchy_generator import OrganizationHierarchyGenerator
+from healthfoundry.services.world_builder import WorldBuilder
 
 __all__ = [
     "Organization",
@@ -32,4 +35,8 @@ __all__ = [
     "WorkforceEventType",
     "World",
     "SimulationConfig",
+    "HierarchyConfig",
+    "RandomSource",
+    "OrganizationHierarchyGenerator",
+    "WorldBuilder",
 ]
