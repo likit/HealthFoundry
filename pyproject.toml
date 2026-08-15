@@ -11,6 +11,10 @@ requires-python = ">=3.11"
 [project.optional-dependencies]
 faker = ["Faker>=40,<41"]
 sql = ["SQLAlchemy>=2,<3"]
+gui = ["FreeSimpleGUI>=5,<6"]
+
+[project.scripts]
+healthfoundry-gui = "healthfoundry.gui:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

@@ -72,6 +72,7 @@ from healthfoundry.services.scenario import (
     Schedule,
 )
 from healthfoundry.services.scenario_applier import ScenarioEventApplier
+from healthfoundry.services.world_store import WorldMetadata, WorldStore
 
 __all__ = [
     "Organization",
@@ -134,4 +135,6 @@ __all__ = [
     "ScenarioRule",
     "Schedule",
     "ScenarioEventApplier",
+    "WorldMetadata",
+    "WorldStore",
 ]

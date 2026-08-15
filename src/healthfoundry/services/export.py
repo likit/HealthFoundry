@@ -29,9 +29,14 @@ class WorldJsonExporter:
 
 def _serialize(value: Any) -> Any:
     if is_dataclass(value):
+        dataclass_fields = fields(value)
+        if len(dataclass_fields) == 1 and dataclass_fields[0].name == "value":
+            identifier = getattr(value, "value")
+            if isinstance(identifier, UUID):
+                return str(identifier)
         return {
             field.name: _serialize(getattr(value, field.name))
-            for field in fields(value)
+            for field in dataclass_fields
         }
     if isinstance(value, Enum):
         return value.value
@@ -44,4 +49,3 @@ def _serialize(value: Any) -> Any:
     if isinstance(value, (set, frozenset)):
         return sorted(_serialize(item) for item in value)
     return value
-

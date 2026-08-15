@@ -14,8 +14,13 @@ from healthfoundry.domain.laboratory import (
     LaboratoryTestDefinition,
     Specimen,
 )
-from healthfoundry.domain.organization import Organization, OrganizationUnitId
-from healthfoundry.domain.person import Person
+from healthfoundry.domain.organization import (
+    Organization,
+    OrganizationId,
+    OrganizationalUnit,
+    OrganizationUnitId,
+)
+from healthfoundry.domain.person import Person, PersonId
 from healthfoundry.domain.workforce import WorkforceEvent
 
 
@@ -52,6 +57,143 @@ class World:
         from healthfoundry.services.export import WorldJsonExporter
 
         return WorldJsonExporter().to_json(self)
+
+    @classmethod
+    def from_json(cls, value: str) -> "World":
+        """Reconstruct a world from JSON produced by :meth:`to_json`."""
+
+        import json
+        from datetime import date
+        from uuid import UUID
+
+        from healthfoundry.domain.assessment import (
+            AssessmentContext,
+            AssessmentStatus,
+            HealthAssessmentId,
+        )
+        from healthfoundry.domain.employment import EmploymentEpisodeId
+        from healthfoundry.domain.laboratory import (
+            LaboratoryObservationId,
+            LaboratoryOrderId,
+            LaboratoryPanelId,
+            LaboratoryTestDefinitionId,
+            SpecimenId,
+        )
+        from healthfoundry.domain.workforce import (
+            WorkforceEventId,
+            WorkforceEventType,
+        )
+        from healthfoundry.domain.timeline import TimelineEventId
+
+        data = json.loads(value)
+        organizations = tuple(
+            Organization(OrganizationId(UUID(item["id"])), item["name"])
+            for item in data["organizations"]
+        )
+        hierarchies = tuple(
+            OrganizationHierarchy(
+                OrganizationId(UUID(item["organization_id"])),
+                tuple(
+                    OrganizationalUnit(
+                        OrganizationUnitId(UUID(unit["id"])),
+                        OrganizationId(UUID(unit["organization_id"])),
+                        unit["name"],
+                        OrganizationUnitId(UUID(unit["parent_id"])) if unit["parent_id"] else None,
+                    )
+                    for unit in item["units"]
+                ),
+            )
+            for item in data["hierarchies"]
+        )
+        people = tuple(
+            Person(
+                PersonId(UUID(item["id"])),
+                item["given_name"],
+                item["family_name"],
+                date.fromisoformat(item["date_of_birth"]) if item["date_of_birth"] else None,
+            )
+            for item in data["people"]
+        )
+        episodes = tuple(
+            EmploymentEpisode(
+                EmploymentEpisodeId(UUID(item["id"])),
+                PersonId(UUID(item["person_id"])),
+                OrganizationId(UUID(item["organization_id"])),
+                OrganizationUnitId(UUID(item["unit_id"])),
+                date.fromisoformat(item["start_date"]),
+                date.fromisoformat(item["end_date"]) if item["end_date"] else None,
+            )
+            for item in data["employment_episodes"]
+        )
+        events = tuple(
+            WorkforceEvent(
+                WorkforceEventId(UUID(item["id"])),
+                PersonId(UUID(item["person_id"])),
+                OrganizationId(UUID(item["organization_id"])),
+                date.fromisoformat(item["occurred_on"]),
+                WorkforceEventType(item["event_type"]),
+                OrganizationUnitId(UUID(item["unit_id"])) if item["unit_id"] else None,
+                OrganizationUnitId(UUID(item["from_unit_id"])) if item["from_unit_id"] else None,
+                OrganizationUnitId(UUID(item["to_unit_id"])) if item["to_unit_id"] else None,
+            )
+            for item in data["workforce_events"]
+        )
+        assessments = tuple(
+            HealthAssessment(
+                HealthAssessmentId(UUID(item["id"])),
+                PersonId(UUID(item["person_id"])),
+                OrganizationId(UUID(item["organization_id"])),
+                date.fromisoformat(item["assessed_on"]),
+                AssessmentContext(item["context"]),
+                AssessmentStatus(item["status"]),
+            )
+            for item in data["assessments"]
+        )
+        definitions = tuple(
+            LaboratoryTestDefinition(
+                LaboratoryTestDefinitionId(UUID(item["id"])),
+                item["code"], item["name"], item["specimen_type"], item["result_unit"],
+            )
+            for item in data["test_definitions"]
+        )
+        panels = tuple(
+            LaboratoryPanel(
+                LaboratoryPanelId(UUID(item["id"])),
+                item["code"], item["name"],
+                tuple(LaboratoryTestDefinitionId(UUID(test_id)) for test_id in item["test_definition_ids"]),
+            )
+            for item in data["laboratory_panels"]
+        )
+        orders = tuple(
+            LaboratoryOrder(
+                LaboratoryOrderId(UUID(item["id"])),
+                PersonId(UUID(item["person_id"])),
+                OrganizationId(UUID(item["organization_id"])),
+                LaboratoryTestDefinitionId(UUID(item["test_definition_id"])),
+                date.fromisoformat(item["ordered_on"]), item["reason"],
+            )
+            for item in data["laboratory_orders"]
+        )
+        specimens = tuple(
+            Specimen(
+                SpecimenId(UUID(item["id"])), LaboratoryOrderId(UUID(item["order_id"])),
+                item["specimen_type"], date.fromisoformat(item["collected_on"]),
+            )
+            for item in data["specimens"]
+        )
+        observations = tuple(
+            LaboratoryObservation(
+                LaboratoryObservationId(UUID(item["id"])),
+                LaboratoryOrderId(UUID(item["order_id"])),
+                LaboratoryTestDefinitionId(UUID(item["test_definition_id"])),
+                date.fromisoformat(item["observed_on"]), item["value"], item["unit"],
+            )
+            for item in data["laboratory_observations"]
+        )
+        return cls(
+            organizations, hierarchies, people, episodes, events, assessments,
+            definitions, panels, orders, specimens, observations,
+        )
 
     def to_sql_tables(self, engine):
         """Write a relational projection to a SQLAlchemy engine."""
@@ -90,6 +232,51 @@ class World:
             laboratory_observations=self.laboratory_observations,
         )
 
+    def replace_hierarchy(self, hierarchy: OrganizationHierarchy) -> "World":
+        """Replace one organization's hierarchy and clear unit-dependent records."""
+
+        hierarchies = tuple(
+            hierarchy if item.organization_id == hierarchy.organization_id else item
+            for item in self.hierarchies
+        )
+        if not any(item.organization_id == hierarchy.organization_id for item in self.hierarchies):
+            hierarchies = (*hierarchies, hierarchy)
+        return World(
+            organizations=self.organizations,
+            hierarchies=hierarchies,
+            people=self.people,
+            employment_episodes=(),
+            workforce_events=(),
+            assessments=self.assessments,
+            test_definitions=self.test_definitions,
+            laboratory_panels=self.laboratory_panels,
+            laboratory_orders=self.laboratory_orders,
+            specimens=self.specimens,
+            laboratory_observations=self.laboratory_observations,
+        )
+
+    def remove_organization(self, organization_id: OrganizationId) -> "World":
+        """Remove an organization and records that belong to it."""
+
+        removed_order_ids = {
+            order.id
+            for order in self.laboratory_orders
+            if order.organization_id == organization_id
+        }
+        return World(
+            organizations=tuple(item for item in self.organizations if item.id != organization_id),
+            hierarchies=tuple(item for item in self.hierarchies if item.organization_id != organization_id),
+            people=self.people,
+            employment_episodes=tuple(item for item in self.employment_episodes if item.organization_id != organization_id),
+            workforce_events=tuple(item for item in self.workforce_events if item.organization_id != organization_id),
+            assessments=tuple(item for item in self.assessments if item.organization_id != organization_id),
+            test_definitions=self.test_definitions,
+            laboratory_panels=self.laboratory_panels,
+            laboratory_orders=tuple(item for item in self.laboratory_orders if item.organization_id != organization_id),
+            specimens=tuple(item for item in self.specimens if item.order_id not in removed_order_ids),
+            laboratory_observations=tuple(item for item in self.laboratory_observations if item.order_id not in removed_order_ids),
+        )
+
     def add_person(self, person: Person) -> "World":
         return World(
             organizations=self.organizations,
@@ -103,6 +290,59 @@ class World:
             laboratory_orders=self.laboratory_orders,
             specimens=self.specimens,
             laboratory_observations=self.laboratory_observations,
+        )
+
+    def replace_people(
+        self,
+        people: tuple[Person, ...],
+        employment_episodes: tuple[EmploymentEpisode, ...] = (),
+    ) -> "World":
+        """Replace the population and reset records belonging to the old population."""
+
+        return World(
+            organizations=self.organizations,
+            hierarchies=self.hierarchies,
+            people=people,
+            employment_episodes=employment_episodes,
+            workforce_events=(),
+            assessments=(),
+            test_definitions=self.test_definitions,
+            laboratory_panels=self.laboratory_panels,
+            laboratory_orders=(),
+            specimens=(),
+            laboratory_observations=(),
+        )
+
+    def replace_organization_people(
+        self,
+        organization_id: OrganizationId,
+        people: tuple[Person, ...],
+        employment_episodes: tuple[EmploymentEpisode, ...],
+    ) -> "World":
+        """Replace one organization's population while preserving other organizations."""
+
+        replaced_person_ids = {
+            episode.person_id
+            for episode in self.employment_episodes
+            if episode.organization_id == organization_id
+        }
+        removed_order_ids = {
+            order.id
+            for order in self.laboratory_orders
+            if order.organization_id == organization_id
+        }
+        return World(
+            organizations=self.organizations,
+            hierarchies=self.hierarchies,
+            people=tuple(person for person in self.people if person.id not in replaced_person_ids) + people,
+            employment_episodes=tuple(item for item in self.employment_episodes if item.organization_id != organization_id) + employment_episodes,
+            workforce_events=tuple(item for item in self.workforce_events if item.organization_id != organization_id),
+            assessments=tuple(item for item in self.assessments if item.organization_id != organization_id),
+            test_definitions=self.test_definitions,
+            laboratory_panels=self.laboratory_panels,
+            laboratory_orders=tuple(item for item in self.laboratory_orders if item.organization_id != organization_id),
+            specimens=tuple(item for item in self.specimens if item.order_id not in removed_order_ids),
+            laboratory_observations=tuple(item for item in self.laboratory_observations if item.order_id not in removed_order_ids),
         )
 
     def add_employment_episode(self, episode: EmploymentEpisode) -> "World":
