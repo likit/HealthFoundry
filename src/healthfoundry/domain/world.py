@@ -39,6 +39,27 @@ class World:
     def empty(cls) -> "World":
         return cls()
 
+    def to_dict(self) -> dict:
+        """Return this world in canonical serialized form."""
+
+        from healthfoundry.services.export import WorldJsonExporter
+
+        return WorldJsonExporter().to_dict(self)
+
+    def to_json(self) -> str:
+        """Return this world as deterministic canonical JSON."""
+
+        from healthfoundry.services.export import WorldJsonExporter
+
+        return WorldJsonExporter().to_json(self)
+
+    def to_sql_tables(self, engine):
+        """Write a relational projection to a SQLAlchemy engine."""
+
+        from healthfoundry.services.sql_export import WorldSqlExporter
+
+        return WorldSqlExporter().to_sql_tables(self, engine)
+
     def add_organization(self, organization: Organization) -> "World":
         return World(
             organizations=(*self.organizations, organization),

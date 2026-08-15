@@ -18,6 +18,8 @@ from healthfoundry.services.assessment_laboratory_workflow import (
     AssessmentLaboratoryWorkflow,
 )
 from healthfoundry.services.assessment_runner import AssessmentRunner
+from healthfoundry.services.export import WorldJsonExporter
+from healthfoundry.services.sql_export import WorldSqlExporter
 
 __all__ = [
     "OrganizationHierarchyGenerator",
@@ -32,6 +34,8 @@ __all__ = [
     "AssessmentLaboratoryOutput",
     "AssessmentLaboratoryWorkflow",
     "AssessmentRunner",
+    "WorldJsonExporter",
+    "WorldSqlExporter",
     "RandomSource",
     "WorldBuilder",
 ]
