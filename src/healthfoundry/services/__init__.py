@@ -17,6 +17,7 @@ from healthfoundry.services.assessment_laboratory_workflow import (
     AssessmentLaboratoryOutput,
     AssessmentLaboratoryWorkflow,
 )
+from healthfoundry.services.assessment_runner import AssessmentRunner
 
 __all__ = [
     "OrganizationHierarchyGenerator",
@@ -30,6 +31,7 @@ __all__ = [
     "LaboratoryObservationGenerator",
     "AssessmentLaboratoryOutput",
     "AssessmentLaboratoryWorkflow",
+    "AssessmentRunner",
     "RandomSource",
     "WorldBuilder",
 ]

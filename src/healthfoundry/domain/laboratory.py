@@ -96,6 +96,62 @@ class LaboratoryPanel:
 
 
 @dataclass(frozen=True, slots=True)
+class LaboratoryResultModel:
+    """A baseline normal-distribution model for one laboratory test."""
+
+    test_definition_id: LaboratoryTestDefinitionId
+    mean: float
+    standard_deviation: float
+
+    def __post_init__(self) -> None:
+        if self.standard_deviation <= 0:
+            raise ValueError("Laboratory result standard deviation must be greater than zero")
+
+
+@dataclass(frozen=True, slots=True)
+class LaboratoryCatalog:
+    """Available tests, panels, and result models for a simulation."""
+
+    tests: tuple[LaboratoryTestDefinition, ...]
+    panels: tuple[LaboratoryPanel, ...]
+    result_models: tuple[LaboratoryResultModel, ...]
+
+    def __post_init__(self) -> None:
+        test_ids = {test.id for test in self.tests}
+        if len(test_ids) != len(self.tests):
+            raise ValueError("Laboratory catalog tests must be unique")
+        panel_codes = {panel.code for panel in self.panels}
+        if len(panel_codes) != len(self.panels):
+            raise ValueError("Laboratory catalog panel codes must be unique")
+        for panel in self.panels:
+            if any(test_id not in test_ids for test_id in panel.test_definition_ids):
+                raise ValueError("Laboratory panel references a test outside the catalog")
+        model_test_ids = {model.test_definition_id for model in self.result_models}
+        if len(model_test_ids) != len(self.result_models):
+            raise ValueError("Laboratory catalog result models must be unique per test")
+        if not model_test_ids <= test_ids:
+            raise ValueError("Laboratory result model references a test outside the catalog")
+
+    def panel_by_code(self, code: str) -> LaboratoryPanel:
+        for panel in self.panels:
+            if panel.code == code:
+                return panel
+        raise ValueError(f"Unknown laboratory panel: {code}")
+
+    def test_by_id(self, test_id: LaboratoryTestDefinitionId) -> LaboratoryTestDefinition:
+        for test in self.tests:
+            if test.id == test_id:
+                return test
+        raise ValueError(f"Unknown laboratory test: {test_id}")
+
+    def result_model_for(self, test_id: LaboratoryTestDefinitionId) -> LaboratoryResultModel:
+        for model in self.result_models:
+            if model.test_definition_id == test_id:
+                return model
+        raise ValueError(f"No result model configured for test: {test_id}")
+
+
+@dataclass(frozen=True, slots=True)
 class LaboratoryOrderId:
     value: UUID
 

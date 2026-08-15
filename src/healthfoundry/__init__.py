@@ -20,6 +20,8 @@ from healthfoundry.domain.laboratory import (
     LaboratoryOrderId,
     LaboratoryPanel,
     LaboratoryPanelId,
+    LaboratoryCatalog,
+    LaboratoryResultModel,
     LaboratoryTestDefinition,
     LaboratoryTestDefinitionId,
     LaboratoryObservation,
@@ -56,6 +58,7 @@ from healthfoundry.services.assessment_laboratory_workflow import (
     AssessmentLaboratoryOutput,
     AssessmentLaboratoryWorkflow,
 )
+from healthfoundry.services.assessment_runner import AssessmentRunner
 
 __all__ = [
     "Organization",
@@ -75,6 +78,8 @@ __all__ = [
     "LaboratoryOrderId",
     "LaboratoryPanel",
     "LaboratoryPanelId",
+    "LaboratoryCatalog",
+    "LaboratoryResultModel",
     "LaboratoryTestDefinition",
     "LaboratoryTestDefinitionId",
     "LaboratoryObservation",
@@ -103,4 +108,5 @@ __all__ = [
     "LaboratoryObservationGenerator",
     "AssessmentLaboratoryOutput",
     "AssessmentLaboratoryWorkflow",
+    "AssessmentRunner",
 ]
