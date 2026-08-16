@@ -6,6 +6,15 @@ from datetime import date
 from pathlib import Path
 
 
+def _apply_futuristic_theme(sg) -> None:
+    """Apply the shared HealthFoundry desktop palette."""
+
+    # Use a built-in theme for compatibility with FreeSimpleGUI 5.x.  Custom
+    # themes are stored and validated through different internal registries in
+    # some releases, which makes the library print its entire theme list.
+    sg.theme("DarkBlue13")
+
+
 def _run_settings(sg, store, world_name: str, initial_world=None, initial_settings=None) -> None:
     """Run the settings window for one selected world."""
 
@@ -37,15 +46,20 @@ def _run_settings(sg, store, world_name: str, initial_world=None, initial_settin
         World,
     )
 
+    _apply_futuristic_theme(sg)
     label_font = ("Any", 14)
     input_font = ("Any", 14)
     button_font = ("Any", 14)
     world = initial_world or World.empty()
+    # Keep the last pre-workforce-simulation world so repeated runs replace
+    # simulation output instead of applying another simulation on top of it.
+    workforce_baseline_world = world
     initial_settings = initial_settings or {}
 
     setting_defaults = {
         "organization": "North Valley Clinic",
         "people_organization": "",
+        "workforce_organization": "",
         "seed": "42",
         "years": "5",
         "population_count": "10",
@@ -114,6 +128,14 @@ def _run_settings(sg, store, world_name: str, initial_world=None, initial_settin
     selected_people_organization_id = (
         initial_people_organization.id if initial_people_organization else None
     )
+    initial_workforce_name = setting("workforce_organization")
+    initial_workforce_organization = next(
+        (item for item in (world.organizations if world else ()) if item.name == initial_workforce_name),
+        (world.organizations[0] if world and world.organizations else None),
+    )
+    selected_workforce_organization_id = (
+        initial_workforce_organization.id if initial_workforce_organization else None
+    )
 
     def people_setting(key: str):
         defaults = {item: setting(item) for item in ("population_count", "locale", "minimum_age", "maximum_age", "female_percentage")}
@@ -147,6 +169,105 @@ def _run_settings(sg, store, world_name: str, initial_world=None, initial_settin
                 "; ".join(unit_names.get(episode.unit_id, str(episode.unit_id)) for episode in episodes),
             ])
         return rows
+
+    def people_statistics() -> str:
+        """Return a compact demographic summary for the selected organization."""
+
+        if world is None or selected_people_organization_id is None:
+            return "Select an organization to view its demographic summary."
+        organization_people = []
+        unit_counts = {}
+        for person in world.people:
+            episodes = [
+                episode for episode in world.employment_episodes
+                if episode.person_id == person.id
+                and episode.organization_id == selected_people_organization_id
+            ]
+            if not episodes:
+                continue
+            organization_people.append(person)
+            for episode in episodes:
+                unit_counts[episode.unit_id] = unit_counts.get(episode.unit_id, 0) + 1
+
+        total = len(organization_people)
+        if total == 0:
+            return "No people generated yet.\n\nGenerate a population to see demographics."
+
+        today = date.today()
+        ages = [
+            today.year - person.date_of_birth.year
+            - ((today.month, today.day) < (person.date_of_birth.month, person.date_of_birth.day))
+            for person in organization_people
+            if person.date_of_birth is not None
+        ]
+        average_age = sum(ages) / len(ages) if ages else 0
+        gender_counts = {}
+        for person in organization_people:
+            label = person.gender.value.title()
+            gender_counts[label] = gender_counts.get(label, 0) + 1
+        unit_names = {
+            unit.id: unit.name
+            for hierarchy in world.hierarchies
+            for unit in hierarchy.units
+        }
+        unit_lines = "\n".join(
+            f"  {unit_names.get(unit_id, str(unit_id))}: {count}"
+            for unit_id, count in sorted(unit_counts.items(), key=lambda item: unit_names.get(item[0], str(item[0])))
+        )
+        age_bands = {
+            "18–29": sum(18 <= age < 30 for age in ages),
+            "30–44": sum(30 <= age < 45 for age in ages),
+            "45–59": sum(45 <= age < 60 for age in ages),
+            "60+": sum(age >= 60 for age in ages),
+        }
+        age_lines = "\n".join(f"  {band}: {count}" for band, count in age_bands.items())
+        gender_lines = "\n".join(
+            f"  {gender}: {count} ({count / total:.0%})"
+            for gender, count in sorted(gender_counts.items())
+        )
+        return (
+            f"Total people: {total}\n"
+            f"Average age: {average_age:.1f}\n\n"
+            f"Gender\n{gender_lines}\n\n"
+            f"Age bands\n{age_lines}\n\n"
+            f"Unit assignments\n{unit_lines or '  None'}"
+        )
+
+    def workforce_statistics() -> str:
+        """Return workforce totals for the selected organization or the world."""
+
+        if world is None:
+            return "Create or open a world to view workforce statistics."
+        organization_id = selected_workforce_organization_id
+        episodes = tuple(
+            episode for episode in world.employment_episodes
+            if organization_id is None or episode.organization_id == organization_id
+        )
+        events = tuple(
+            event for event in world.workforce_events
+            if organization_id is None or event.organization_id == organization_id
+        )
+        active_people = {
+            episode.person_id for episode in episodes if episode.end_date is None
+        }
+        event_counts = {
+            event_type: sum(event.event_type.value == event_type for event in events)
+            for event_type in ("hire", "transfer", "resignation", "retirement")
+        }
+        scope = next(
+            (organization.name for organization in world.organizations if organization.id == organization_id),
+            "All organizations",
+        ) if organization_id is not None else "All organizations"
+        return (
+            f"Scope: {scope}\n\n"
+            f"Active employees: {len(active_people)}\n"
+            f"Employment episodes: {len(episodes)}\n\n"
+            f"Workforce events\n"
+            f"  Hires: {event_counts['hire']}\n"
+            f"  Transfers: {event_counts['transfer']}\n"
+            f"  Resignations: {event_counts['resignation']}\n"
+            f"  Retirements: {event_counts['retirement']}"
+        )
 
     def hierarchy_tree_data(organization_id=None):
         tree_data = sg.TreeData()
@@ -211,20 +332,24 @@ def _run_settings(sg, store, world_name: str, initial_world=None, initial_settin
     ]
     people_tab = [
         [sg.Text("Add people", font=("Any", 18))],
-        [sg.Text("Organization", font=label_font), sg.Combo(
-            organization_names(),
-            default_value=(initial_people_organization.name if initial_people_organization else ""),
-            key="people_organization",
-            enable_events=True,
-            readonly=True,
-            font=input_font,
-        )],
-        [sg.Text("Population count", font=label_font), sg.Input(people_setting("population_count"), key="population_count", font=input_font)],
-        [sg.Text("Locale", font=label_font), sg.Input(people_setting("locale"), key="locale", font=input_font)],
-        [sg.Text("Minimum age", font=label_font), sg.Input(people_setting("minimum_age"), key="minimum_age", font=input_font)],
-        [sg.Text("Maximum age", font=label_font), sg.Input(people_setting("maximum_age"), key="maximum_age", font=input_font)],
-        [sg.Text("Female proportion (%)", font=label_font), sg.Input(people_setting("female_percentage"), key="female_percentage", font=input_font)],
-        [sg.Button("Generate People", key="generate_people", font=button_font)],
+        [sg.Column([
+            [sg.Text("Organization", size=(24, 1), font=label_font), sg.Combo(
+                organization_names(),
+                default_value=(initial_people_organization.name if initial_people_organization else ""),
+                key="people_organization",
+                enable_events=True,
+                readonly=True,
+                size=(24, 1),
+                font=input_font,
+            )],
+            [sg.Text("Population count", size=(24, 1), font=label_font), sg.Input(people_setting("population_count"), key="population_count", size=(24, 1), font=input_font)],
+            [sg.Text("Locale", size=(24, 1), font=label_font), sg.Input(people_setting("locale"), key="locale", size=(24, 1), font=input_font)],
+            [sg.Text("Minimum age", size=(24, 1), font=label_font), sg.Input(people_setting("minimum_age"), key="minimum_age", size=(24, 1), font=input_font)],
+            [sg.Text("Maximum age", size=(24, 1), font=label_font), sg.Input(people_setting("maximum_age"), key="maximum_age", size=(24, 1), font=input_font)],
+            [sg.Text("Female proportion (%)", size=(24, 1), font=label_font), sg.Input(people_setting("female_percentage"), key="female_percentage", size=(24, 1), font=input_font)],
+            [sg.Button("Generate People", key="generate_people", font=button_font)],
+        ], vertical_alignment="top", pad=(0, 0)),
+        sg.Frame("Population summary", [[sg.Text(people_statistics(), key="people_statistics", size=(34, 16), font=input_font)]], vertical_alignment="top")],
         [sg.Table(
             people_table_rows(),
             headings=["ID", "Given name", "Family name", "Gender", "Date of birth", "Unit"],
@@ -240,10 +365,22 @@ def _run_settings(sg, store, world_name: str, initial_world=None, initial_settin
     ]
     workforce_tab = [
         [sg.Text("Workforce simulation", font=("Any", 18))],
-        [sg.Text("Transfer rate (0-1)", font=label_font), sg.Input(setting("transfer_rate"), key="transfer_rate", font=input_font)],
-        [sg.Text("Resignation rate (0-1)", font=label_font), sg.Input(setting("resignation_rate"), key="resignation_rate", font=input_font)],
-        [sg.Text("Retirement age", font=label_font), sg.Input(setting("retirement_age"), key="retirement_age", font=input_font)],
-        [sg.Button("Run Workforce Simulation", key="simulate_workforce", font=button_font)],
+        [sg.Column([
+            [sg.Text("Organization", size=(24, 1), font=label_font), sg.Combo(
+                organization_names(),
+                default_value=(initial_workforce_organization.name if initial_workforce_organization else ""),
+                key="workforce_organization",
+                enable_events=True,
+                readonly=True,
+                size=(24, 1),
+                font=input_font,
+            )],
+            [sg.Text("Transfer rate (0-1)", size=(24, 1), font=label_font), sg.Input(setting("transfer_rate"), key="transfer_rate", size=(24, 1), font=input_font)],
+            [sg.Text("Resignation rate (0-1)", size=(24, 1), font=label_font), sg.Input(setting("resignation_rate"), key="resignation_rate", size=(24, 1), font=input_font)],
+            [sg.Text("Retirement age", size=(24, 1), font=label_font), sg.Input(setting("retirement_age"), key="retirement_age", size=(24, 1), font=input_font)],
+            [sg.Button("Run Workforce Simulation", key="simulate_workforce", font=button_font)],
+        ], vertical_alignment="top", pad=(0, 0)),
+        sg.Frame("Workforce summary", [[sg.Text(workforce_statistics(), key="workforce_statistics", size=(34, 10), font=input_font)]], vertical_alignment="top")],
     ]
     assessment_tab = [
         [sg.Text("Health assessments", font=("Any", 18))],
@@ -261,8 +398,8 @@ def _run_settings(sg, store, world_name: str, initial_world=None, initial_settin
         [sg.Multiline(size=(80, 14), key="output", disabled=True, font=input_font)],
     ]
     layout = [
-        [sg.Text("HealthFoundry", font=("Any", 24))],
-        [sg.TabGroup([[sg.Tab("World", world_tab), sg.Tab("Organization", organization_tab), sg.Tab("People", people_tab), sg.Tab("Workforce", workforce_tab), sg.Tab("Assessments", assessment_tab), sg.Tab("Export", export_tab)]], font=("Any", 16), expand_x=True)],
+        [sg.Text("HealthFoundry", font=("Any", 24, "bold"))],
+        [sg.TabGroup([[sg.Tab("World", world_tab), sg.Tab("Organization", organization_tab), sg.Tab("People", people_tab), sg.Tab("Workforce", workforce_tab), sg.Tab("Assessments", assessment_tab), sg.Tab("Export", export_tab)]], font=("Any", 18, "bold"), expand_x=True)],
         [sg.Text("", key="status", font=label_font, size=(100, 2))],
         [sg.Button("Save", key="save_world", font=button_font)],
         [sg.Button("Exit", font=button_font)],
@@ -287,6 +424,13 @@ def _run_settings(sg, store, world_name: str, initial_world=None, initial_settin
             value=selected_name if selected_name in names else (names[0] if names else ""),
         )
 
+    def update_workforce_organizations(selected_name=None) -> None:
+        names = organization_names()
+        window["workforce_organization"].update(
+            values=names,
+            value=selected_name if selected_name in names else (names[0] if names else ""),
+        )
+
     def capture_people_settings(values) -> None:
         if selected_people_organization_id is None or not values:
             return
@@ -305,12 +449,17 @@ def _run_settings(sg, store, world_name: str, initial_world=None, initial_settin
     def update_people_table() -> None:
         rows = people_table_rows()
         window["people_table_main"].update(values=rows)
+        window["people_statistics"].update(people_statistics())
+        update_workforce_summary()
         if selected_people_organization_id is not None and not rows:
             selected_name = next(
                 (item.name for item in world.organizations if item.id == selected_people_organization_id),
                 "selected organization",
             ) if world else "selected organization"
             show(f"No people generated for {selected_name}")
+
+    def update_workforce_summary() -> None:
+        window["workforce_statistics"].update(workforce_statistics())
 
     def update_hierarchy_tree() -> None:
         # Use the positional form for compatibility across FreeSimpleGUI versions.
@@ -551,6 +700,10 @@ def _run_settings(sg, store, world_name: str, initial_world=None, initial_settin
             "",
         )
         settings["people_organization"] = selected_people
+        settings["workforce_organization"] = next(
+            (item.name for item in (world.organizations if world else ()) if item.id == selected_workforce_organization_id),
+            "",
+        )
         settings["people_settings"] = people_settings_by_organization
         return settings
 
@@ -604,7 +757,7 @@ def _run_settings(sg, store, world_name: str, initial_world=None, initial_settin
         return True
 
     def regenerate_people(values) -> bool:
-        nonlocal world
+        nonlocal world, workforce_baseline_world, selected_people_organization_id
         if world is None or simulation_config is None or not world.organizations:
             show("Create an organization first")
             return False
@@ -616,6 +769,10 @@ def _run_settings(sg, store, world_name: str, initial_world=None, initial_settin
         if organization is None:
             show("Select an organization first")
             return False
+        # The dropdown is the source of truth for generation. Keep the table
+        # selection aligned with it so a refresh cannot show another
+        # organization's population as empty.
+        selected_people_organization_id = organization.id
         hierarchy = next(
             (item for item in world.hierarchies if item.organization_id == organization.id),
             None,
@@ -664,6 +821,7 @@ def _run_settings(sg, store, world_name: str, initial_world=None, initial_settin
             tuple(people),
             tuple(episodes),
         )
+        workforce_baseline_world = world
         show(f"Replaced population for {organization.name} with {len(people)} people")
         enable_exports()
         return True
@@ -767,11 +925,14 @@ def _run_settings(sg, store, world_name: str, initial_world=None, initial_settin
                     years=int(values["years"]),
                 )
                 world = World.empty()
+                workforce_baseline_world = world
                 selected_organization_id = None
                 selected_unit_id = None
                 selected_people_organization_id = None
+                selected_workforce_organization_id = None
                 update_organization_table()
                 update_people_organizations()
+                update_workforce_organizations()
                 update_people_table()
                 window["selected_organization"].update("Selected organization: none")
                 update_hierarchy_tree()
@@ -806,6 +967,14 @@ def _run_settings(sg, store, world_name: str, initial_world=None, initial_settin
                 )
                 update_people_fields()
                 update_people_table()
+
+            elif event == "workforce_organization":
+                selected_name = values.get("workforce_organization")
+                selected_workforce_organization_id = next(
+                    (item.id for item in world.organizations if item.name == selected_name),
+                    selected_workforce_organization_id,
+                )
+                update_workforce_summary()
 
             elif event == "show_text_editor":
                 window["text_editor_column"].update(
@@ -858,6 +1027,7 @@ def _run_settings(sg, store, world_name: str, initial_world=None, initial_settin
                 world = world.add_organization(organization).add_hierarchy(hierarchy)
                 selected_organization_id = organization.id
                 selected_people_organization_id = organization.id
+                selected_workforce_organization_id = organization.id
                 window["organization_table"].update(
                     values=organization_rows(),
                     select_rows=[len(world.organizations) - 1],
@@ -866,6 +1036,7 @@ def _run_settings(sg, store, world_name: str, initial_world=None, initial_settin
                     f"Selected organization: {organization.name}"
                 )
                 update_people_organizations(organization.name)
+                update_workforce_organizations(organization.name)
                 update_people_fields()
                 update_people_table()
                 update_hierarchy_tree()
@@ -894,10 +1065,15 @@ def _run_settings(sg, store, world_name: str, initial_world=None, initial_settin
                 selected_organization_id = None
                 if selected_people_organization_id == organization.id:
                     selected_people_organization_id = None
+                if selected_workforce_organization_id == organization.id:
+                    selected_workforce_organization_id = None
                 update_organization_table()
                 update_people_organizations()
+                update_workforce_organizations()
                 if selected_people_organization_id is None and world.organizations:
                     selected_people_organization_id = world.organizations[0].id
+                if selected_workforce_organization_id is None and world.organizations:
+                    selected_workforce_organization_id = world.organizations[0].id
                 update_people_fields()
                 update_people_table()
                 window["selected_organization"].update("Selected organization: none")
@@ -929,8 +1105,9 @@ def _run_settings(sg, store, world_name: str, initial_world=None, initial_settin
                 )
                 world = WorkforceSimulator(
                     RandomSource(simulation_config.random_seed + 4)
-                ).simulate(world, simulation_config, workforce_config)
-                show(f"Workforce simulation complete\nEvents: {len(world.workforce_events)}\nEmployment episodes: {len(world.employment_episodes)}")
+                ).simulate(workforce_baseline_world, simulation_config, workforce_config)
+                update_workforce_summary()
+                show(f"Workforce simulation reset from baseline and complete\nEvents: {len(world.workforce_events)}\nEmployment episodes: {len(world.employment_episodes)}")
                 enable_exports()
 
             elif event == "run_assessments":
@@ -1010,6 +1187,7 @@ def main() -> None:
 
     from healthfoundry import WorldStore
 
+    _apply_futuristic_theme(sg)
     store = WorldStore()
     label_font = ("Any", 14)
     button_font = ("Any", 14)
@@ -1024,7 +1202,7 @@ def main() -> None:
 
     metadata, display_rows = get_rows()
     layout = [
-        [sg.Text("HealthFoundry Worlds", font=("Any", 24))],
+        [sg.Text("HealthFoundry Worlds", font=("Any", 24, "bold"))],
         [sg.Text("Select a saved world to open its settings.", font=label_font)],
         [sg.Table(
             display_rows,
