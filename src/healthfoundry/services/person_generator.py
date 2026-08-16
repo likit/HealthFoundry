@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date
 
 from healthfoundry.config import PopulationConfig
-from healthfoundry.domain.person import Person, PersonId
+from healthfoundry.domain.person import Gender, Person, PersonId
 from healthfoundry.services.randomness import RandomSource
 from healthfoundry.services.person_provider import FakerNameProvider, PersonNameProvider
 
@@ -34,6 +34,8 @@ class PersonGenerator:
         else:
             name_provider = FakerNameProvider(config.locale or "en_US", self._randomness)
 
+        female_count = round(config.count * config.female_proportion)
+        remaining_genders = [Gender.FEMALE] * female_count + [Gender.MALE] * (config.count - female_count)
         people = []
         for _ in range(config.count):
             given_name, family_name = name_provider.name()
@@ -44,12 +46,15 @@ class PersonGenerator:
                     config.minimum_age,
                     config.maximum_age,
                 )
+            gender_index = self._randomness.integer(0, len(remaining_genders) - 1)
+            gender = remaining_genders.pop(gender_index)
             people.append(
                 Person(
                     id=PersonId(self._randomness.uuid()),
                     given_name=given_name,
                     family_name=family_name,
                     date_of_birth=date_of_birth,
+                    gender=gender,
                 )
             )
         return tuple(people)

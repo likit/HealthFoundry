@@ -2,7 +2,7 @@ from datetime import date
 
 import pytest
 
-from healthfoundry import PersonGenerator, PopulationConfig, RandomSource
+from healthfoundry import Gender, PersonGenerator, PopulationConfig, RandomSource
 
 
 def test_person_generator_is_reproducible() -> None:
@@ -52,6 +52,17 @@ def test_age_range_requires_as_of_date() -> None:
 
     with pytest.raises(ValueError, match="as-of date"):
         PersonGenerator(RandomSource(42)).generate(config)
+
+
+def test_person_generator_assigns_configured_gender_proportion() -> None:
+    config = PopulationConfig.from_names(
+        10, ["Ada"], ["Lovelace"], female_proportion=0.7
+    )
+
+    people = PersonGenerator(RandomSource(42)).generate(config)
+
+    assert sum(person.gender == Gender.FEMALE for person in people) == 7
+    assert sum(person.gender == Gender.MALE for person in people) == 3
 
 
 def _age_on(date_of_birth: date, as_of: date) -> int:

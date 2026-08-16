@@ -47,6 +47,7 @@ class WorldSqlExporter:
             Column("id", String, primary_key=True),
             Column("given_name", String, nullable=False),
             Column("family_name", String, nullable=False),
+            Column("gender", String, nullable=False),
             Column("date_of_birth", Date, nullable=True),
         )
         employment_episodes = Table(
@@ -145,6 +146,7 @@ class WorldSqlExporter:
                     "id": str(person.id),
                     "given_name": person.given_name,
                     "family_name": person.family_name,
+                    "gender": person.gender.value,
                     "date_of_birth": person.date_of_birth,
                 }
                 for person in world.people

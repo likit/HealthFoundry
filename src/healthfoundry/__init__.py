@@ -7,7 +7,7 @@ from healthfoundry.domain.organization import (
     OrganizationUnitId,
 )
 from healthfoundry.domain.hierarchy import OrganizationHierarchy
-from healthfoundry.domain.person import Person, PersonId
+from healthfoundry.domain.person import Gender, Person, PersonId
 from healthfoundry.domain.employment import EmploymentEpisode, EmploymentEpisodeId
 from healthfoundry.domain.workforce import (
     WorkforceEvent,
@@ -82,6 +82,7 @@ __all__ = [
     "OrganizationHierarchy",
     "Person",
     "PersonId",
+    "Gender",
     "EmploymentEpisode",
     "EmploymentEpisodeId",
     "WorkforceEvent",

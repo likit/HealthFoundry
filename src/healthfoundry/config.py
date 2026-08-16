@@ -49,6 +49,7 @@ class PopulationConfig:
     minimum_age: int | None = None
     maximum_age: int | None = None
     locale: str | None = None
+    female_proportion: float = 0.5
 
     @classmethod
     def from_names(
@@ -59,6 +60,7 @@ class PopulationConfig:
         minimum_age: int | None = None,
         maximum_age: int | None = None,
         locale: str | None = None,
+        female_proportion: float = 0.5,
     ) -> "PopulationConfig":
         return cls(
             count,
@@ -67,6 +69,7 @@ class PopulationConfig:
             minimum_age,
             maximum_age,
             locale,
+            female_proportion,
         )
 
     def __post_init__(self) -> None:
@@ -83,6 +86,8 @@ class PopulationConfig:
         if self.minimum_age is not None and self.maximum_age is not None:
             if not 0 <= self.minimum_age <= self.maximum_age <= 120:
                 raise ValueError("Age range must be between 0 and 120 years")
+        if not 0.0 <= self.female_proportion <= 1.0:
+            raise ValueError("Female proportion must be between 0 and 1")
 
 
 @dataclass(frozen=True, slots=True)

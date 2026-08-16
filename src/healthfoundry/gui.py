@@ -52,6 +52,7 @@ def _run_settings(sg, store, world_name: str, initial_world=None, initial_settin
         "locale": "th_TH",
         "minimum_age": "20",
         "maximum_age": "70",
+        "female_percentage": "50",
         "transfer_rate": "0.10",
         "resignation_rate": "0.05",
         "retirement_age": "65",
@@ -115,10 +116,37 @@ def _run_settings(sg, store, world_name: str, initial_world=None, initial_settin
     )
 
     def people_setting(key: str):
-        defaults = {item: setting(item) for item in ("population_count", "locale", "minimum_age", "maximum_age")}
+        defaults = {item: setting(item) for item in ("population_count", "locale", "minimum_age", "maximum_age", "female_percentage")}
         saved = people_settings_by_organization.get(str(selected_people_organization_id), {})
         value = saved.get(key, defaults[key])
         return defaults[key] if value in (None, "", "None") else value
+
+    def people_table_rows():
+        if world is None or selected_people_organization_id is None:
+            return []
+        unit_names = {
+            unit.id: unit.name
+            for hierarchy in world.hierarchies
+            for unit in hierarchy.units
+        }
+        rows = []
+        for person in world.people:
+            episodes = [
+                episode for episode in world.employment_episodes
+                if episode.person_id == person.id
+                and episode.organization_id == selected_people_organization_id
+            ]
+            if not episodes:
+                continue
+            rows.append([
+                str(person.id),
+                person.given_name,
+                person.family_name,
+                person.gender.value,
+                str(person.date_of_birth or ""),
+                "; ".join(unit_names.get(episode.unit_id, str(episode.unit_id)) for episode in episodes),
+            ])
+        return rows
 
     def hierarchy_tree_data(organization_id=None):
         tree_data = sg.TreeData()
@@ -138,7 +166,7 @@ def _run_settings(sg, store, world_name: str, initial_world=None, initial_settin
                 parent_key = str(unit.parent_id) if unit.parent_id else ""
                 if parent_key not in inserted:
                     continue
-                tree_data.Insert(parent_key, str(unit.id), unit.name, [])
+                tree_data.insert(parent_key, str(unit.id), unit.name, [])
                 inserted.add(str(unit.id))
                 remaining.remove(unit)
                 progress = True
@@ -160,7 +188,6 @@ def _run_settings(sg, store, world_name: str, initial_world=None, initial_settin
             num_rows=5,
             font=input_font,
         )],
-        [sg.Text("New organization name", font=label_font), sg.Input("", key="new_organization_name", font=input_font)],
         [sg.Button("Add Organization", key="add_organization", font=button_font), sg.Button("Delete Organization", key="delete_organization", font=button_font)],
         [sg.Text("Selected organization: none", key="selected_organization", font=label_font)],
         [sg.Text("Structure preview", font=label_font)],
@@ -175,6 +202,7 @@ def _run_settings(sg, store, world_name: str, initial_world=None, initial_settin
             col0_width=45,
             font=input_font,
         )],
+        [sg.Text("No units yet. Click Add Unit to create the first unit.", key="hierarchy_empty", font=label_font)],
         [sg.Button("Add Unit", key="add_unit", font=button_font), sg.Button("Edit Unit", key="edit_unit", font=button_font), sg.Button("Delete Unit", key="delete_unit", font=button_font)],
         [sg.pin(sg.Column([
             [sg.Text("One unit per line: unit | parent", font=label_font)],
@@ -195,7 +223,20 @@ def _run_settings(sg, store, world_name: str, initial_world=None, initial_settin
         [sg.Text("Locale", font=label_font), sg.Input(people_setting("locale"), key="locale", font=input_font)],
         [sg.Text("Minimum age", font=label_font), sg.Input(people_setting("minimum_age"), key="minimum_age", font=input_font)],
         [sg.Text("Maximum age", font=label_font), sg.Input(people_setting("maximum_age"), key="maximum_age", font=input_font)],
-        [sg.Button("Generate People", key="generate_people", font=button_font), sg.Button("Preview People", key="preview_people", font=button_font)],
+        [sg.Text("Female proportion (%)", font=label_font), sg.Input(people_setting("female_percentage"), key="female_percentage", font=input_font)],
+        [sg.Button("Generate People", key="generate_people", font=button_font)],
+        [sg.Table(
+            people_table_rows(),
+            headings=["ID", "Given name", "Family name", "Gender", "Date of birth", "Unit"],
+            key="people_table_main",
+            enable_events=True,
+            auto_size_columns=False,
+            col_widths=[38, 16, 16, 12, 14, 28],
+            num_rows=10,
+            expand_x=True,
+            font=input_font,
+        )],
+        [sg.Button("Preview Person", key="preview_person", font=button_font)],
     ]
     workforce_tab = [
         [sg.Text("Workforce simulation", font=("Any", 18))],
@@ -231,6 +272,10 @@ def _run_settings(sg, store, world_name: str, initial_world=None, initial_settin
         "<Double-1>",
         lambda _event: window.write_event_value("edit_unit", None),
     )
+    window["people_table_main"].Widget.bind(
+        "<Double-1>",
+        lambda _event: window.write_event_value("preview_person", None),
+    )
 
     def update_organization_table() -> None:
         window["organization_table"].update(values=organization_rows())
@@ -248,18 +293,33 @@ def _run_settings(sg, store, world_name: str, initial_world=None, initial_settin
         current = people_settings_by_organization.setdefault(
             str(selected_people_organization_id), {}
         )
-        for key in ("population_count", "locale", "minimum_age", "maximum_age"):
+        for key in ("population_count", "locale", "minimum_age", "maximum_age", "female_percentage"):
             value = values.get(key)
             if value not in (None, "", "None"):
                 current[key] = str(value)
 
     def update_people_fields() -> None:
-        for key in ("population_count", "locale", "minimum_age", "maximum_age"):
+        for key in ("population_count", "locale", "minimum_age", "maximum_age", "female_percentage"):
             window[key].update(people_setting(key))
+
+    def update_people_table() -> None:
+        rows = people_table_rows()
+        window["people_table_main"].update(values=rows)
+        if selected_people_organization_id is not None and not rows:
+            selected_name = next(
+                (item.name for item in world.organizations if item.id == selected_people_organization_id),
+                "selected organization",
+            ) if world else "selected organization"
+            show(f"No people generated for {selected_name}")
 
     def update_hierarchy_tree() -> None:
         # Use the positional form for compatibility across FreeSimpleGUI versions.
         window["hierarchy_tree"].update(hierarchy_tree_data(selected_organization_id))
+        has_units = bool(
+            world
+            and any(item.organization_id == selected_organization_id and item.units for item in world.hierarchies)
+        )
+        window["hierarchy_empty"].update(visible=not has_units)
 
     def load_selected_organization() -> bool:
         if world is None or selected_organization_id is None:
@@ -295,6 +355,54 @@ def _run_settings(sg, store, world_name: str, initial_world=None, initial_settin
         update_hierarchy_tree()
         update_organization_table()
 
+    def preview_person(values) -> None:
+        selected_rows = values.get("people_table_main", []) if values else []
+        rows = people_table_rows()
+        if not selected_rows or selected_rows[0] >= len(rows):
+            show("Select a person first")
+            return
+        person_id = rows[selected_rows[0]][0]
+        person = next((item for item in world.people if str(item.id) == person_id), None)
+        if person is None:
+            show("The selected person no longer exists")
+            return
+        organization_names_by_id = {
+            organization.id: organization.name
+            for organization in world.organizations
+        }
+        unit_names = {
+            unit.id: unit.name
+            for hierarchy in world.hierarchies
+            for unit in hierarchy.units
+        }
+        episodes = [episode for episode in world.employment_episodes if episode.person_id == person.id]
+        employment = "\n".join(
+            f"{organization_names_by_id.get(episode.organization_id, episode.organization_id)} / "
+            f"{unit_names.get(episode.unit_id, episode.unit_id)}: "
+            f"{episode.start_date} to {episode.end_date or 'active'}"
+            for episode in episodes
+        ) or "No employment episodes"
+        detail_rows = [
+            ["ID", str(person.id)],
+            ["Given name", person.given_name],
+            ["Family name", person.family_name],
+            ["Gender", person.gender.value],
+            ["Date of birth", str(person.date_of_birth or "")],
+            ["Employment", employment],
+        ]
+        person_window = sg.Window(
+            "Person Preview",
+            [
+                [sg.Text("Person information", font=("Any", 18))],
+                [sg.Table(detail_rows, headings=["Field", "Value"], hide_vertical_scroll=True, auto_size_columns=False, col_widths=[18, 80], num_rows=6, font=input_font)],
+                [sg.Button("Close", font=button_font)],
+            ],
+            resizable=True,
+            modal=True,
+        )
+        person_window.read()
+        person_window.close()
+
     def add_unit() -> None:
         if world is None or selected_organization_id is None:
             show("Select an organization first")
@@ -303,13 +411,33 @@ def _run_settings(sg, store, world_name: str, initial_world=None, initial_settin
             item for item in world.hierarchies
             if item.organization_id == selected_organization_id
         )
-        name = sg.popup_get_text("Unit name", title="Add Unit")
-        if not name or not name.strip():
+        parent_choices = ["(Top level)"] + [unit.name for unit in hierarchy.units]
+        unit_modal = sg.Window(
+            "Add Unit",
+            [
+                [sg.Text("Unit name", font=label_font), sg.Input(key="name", font=input_font)],
+                [sg.Text("Parent", font=label_font), sg.Combo(parent_choices, default_value="(Top level)", key="parent", readonly=True, font=input_font)],
+                [sg.Button("Add", font=button_font), sg.Button("Cancel", font=button_font)],
+            ],
+            modal=True,
+        )
+        modal_event, modal_values = unit_modal.read()
+        unit_modal.close()
+        if modal_event != "Add":
             return
-        if any(unit.name == name.strip() for unit in hierarchy.units):
+        unit_name = str(modal_values.get("name") or "").strip()
+        if not unit_name:
+            show("Unit names must not be empty")
+            return
+        if any(unit.name == unit_name for unit in hierarchy.units):
             show("Unit names must be unique")
             return
-        unit = OrganizationalUnit.create(hierarchy.organization_id, name.strip())
+        parent_name = modal_values.get("parent")
+        parent_id = next(
+            (item.id for item in hierarchy.units if item.name == parent_name),
+            None,
+        )
+        unit = OrganizationalUnit.create(hierarchy.organization_id, unit_name, parent_id)
         replace_selected_hierarchy(
             OrganizationHierarchy(hierarchy.organization_id, (*hierarchy.units, unit))
         )
@@ -483,7 +611,7 @@ def _run_settings(sg, store, world_name: str, initial_world=None, initial_settin
         organization_name = values.get("people_organization")
         organization = next(
             (item for item in world.organizations if item.name == organization_name),
-            None,
+            next((item for item in world.organizations if item.id == selected_people_organization_id), None),
         )
         if organization is None:
             show("Select an organization first")
@@ -496,17 +624,35 @@ def _run_settings(sg, store, world_name: str, initial_world=None, initial_settin
             show("Add organizational units before generating people")
             return False
         organization_seed = organization.id.value.int
+        replaced_person_ids = {
+            episode.person_id
+            for episode in world.employment_episodes
+            if episode.organization_id == organization.id
+        }
+        existing_person_ids = {
+            person.id for person in world.people
+            if person.id not in replaced_person_ids
+        }
         population = PopulationConfig(
             count=int(values["population_count"]),
             locale=values["locale"].strip(),
             minimum_age=int(values["minimum_age"]),
             maximum_age=int(values["maximum_age"]),
+            female_proportion=float(values["female_percentage"]) / 100.0,
         )
-        people = PersonGenerator(
-            RandomSource(simulation_config.random_seed + 2 + organization_seed)
-        ).generate(population, simulation_config.start_date)
+        generation_seed = simulation_config.random_seed + 2 + organization_seed
+        for _ in range(10):
+            people = PersonGenerator(RandomSource(generation_seed)).generate(
+                population, simulation_config.start_date
+            )
+            if not any(person.id in existing_person_ids for person in people):
+                break
+            generation_seed += 1_000_003
+        else:
+            show("Could not create unique person identities")
+            return False
         episodes = EmploymentGenerator(
-            RandomSource(simulation_config.random_seed + 3 + organization_seed)
+            RandomSource(generation_seed + 1)
         ).assign_initial(
             people,
             organization.id,
@@ -566,9 +712,10 @@ def _run_settings(sg, store, world_name: str, initial_world=None, initial_settin
                 rows.append([
                     str(person.id),
                     organizations,
-                    person.given_name,
-                    person.family_name,
-                    str(person.date_of_birth or ""),
+                person.given_name,
+                person.family_name,
+                person.gender.value,
+                str(person.date_of_birth or ""),
                     employment,
                 ])
             return rows
@@ -582,9 +729,9 @@ def _run_settings(sg, store, world_name: str, initial_world=None, initial_settin
                 [sg.Table(
                     rows,
                     key="people_table",
-                    headings=["ID", "Organization", "Given name", "Family name", "Date of birth", "Employment"],
+                    headings=["ID", "Organization", "Given name", "Family name", "Gender", "Date of birth", "Employment"],
                     auto_size_columns=False,
-                    col_widths=[38, 28, 16, 16, 14, 50],
+                    col_widths=[38, 28, 16, 16, 12, 14, 50],
                     expand_x=True,
                     expand_y=True,
                     num_rows=max(5, min(20, len(rows) or 5)),
@@ -625,6 +772,7 @@ def _run_settings(sg, store, world_name: str, initial_world=None, initial_settin
                 selected_people_organization_id = None
                 update_organization_table()
                 update_people_organizations()
+                update_people_table()
                 window["selected_organization"].update("Selected organization: none")
                 update_hierarchy_tree()
                 show("New empty world created. Add an organization next.")
@@ -646,11 +794,18 @@ def _run_settings(sg, store, world_name: str, initial_world=None, initial_settin
 
             elif event == "people_organization":
                 capture_people_settings(values)
+                selected_name = values.get("people_organization")
+                if not selected_name:
+                    selected_name = next(
+                        (item.name for item in world.organizations if item.id == selected_people_organization_id),
+                        None,
+                    )
                 selected_people_organization_id = next(
-                    (item.id for item in world.organizations if item.name == values.get("people_organization")),
-                    None,
+                    (item.id for item in world.organizations if item.name == selected_name),
+                    selected_people_organization_id,
                 )
                 update_people_fields()
+                update_people_table()
 
             elif event == "show_text_editor":
                 window["text_editor_column"].update(
@@ -671,7 +826,7 @@ def _run_settings(sg, store, world_name: str, initial_world=None, initial_settin
                     show("Create a new world first")
                     continue
                 update_simulation_config(values)
-                organization_name = (values.get("new_organization_name") or "").strip()
+                organization_name = (sg.popup_get_text("Organization name", title="Add Organization") or "").strip()
                 if not organization_name:
                     show("Enter an organization name first")
                     continue
@@ -682,9 +837,6 @@ def _run_settings(sg, store, world_name: str, initial_world=None, initial_settin
                         continue
                     parts = [part.strip() for part in line.split("|", 1)]
                     relationships.append((parts[0], parts[1] if len(parts) == 2 and parts[1] else None))
-                if not relationships:
-                    show("Enter at least one organizational unit first")
-                    continue
                 organization_randomness = RandomSource(
                     simulation_config.random_seed + len(world.organizations) + 1
                 )
@@ -696,9 +848,13 @@ def _run_settings(sg, store, world_name: str, initial_world=None, initial_settin
                     organization_id,
                     organization_name,
                 )
-                hierarchy = OrganizationHierarchyGenerator(
-                    RandomSource(simulation_config.random_seed + len(world.organizations) + 2)
-                ).generate_explicit(organization.id, relationships)
+                hierarchy = (
+                    OrganizationHierarchyGenerator(
+                        RandomSource(simulation_config.random_seed + len(world.organizations) + 2)
+                    ).generate_explicit(organization.id, relationships)
+                    if relationships
+                    else OrganizationHierarchy.empty(organization.id)
+                )
                 world = world.add_organization(organization).add_hierarchy(hierarchy)
                 selected_organization_id = organization.id
                 selected_people_organization_id = organization.id
@@ -706,12 +862,12 @@ def _run_settings(sg, store, world_name: str, initial_world=None, initial_settin
                     values=organization_rows(),
                     select_rows=[len(world.organizations) - 1],
                 )
-                window["new_organization_name"].update("")
                 window["selected_organization"].update(
                     f"Selected organization: {organization.name}"
                 )
                 update_people_organizations(organization.name)
                 update_people_fields()
+                update_people_table()
                 update_hierarchy_tree()
                 window["hierarchy"].set_focus()
                 show(f"Organization added with {len(hierarchy.units)} organizational units")
@@ -743,6 +899,7 @@ def _run_settings(sg, store, world_name: str, initial_world=None, initial_settin
                 if selected_people_organization_id is None and world.organizations:
                     selected_people_organization_id = world.organizations[0].id
                 update_people_fields()
+                update_people_table()
                 window["selected_organization"].update("Selected organization: none")
                 window["hierarchy"].update("")
                 update_hierarchy_tree()
@@ -751,10 +908,14 @@ def _run_settings(sg, store, world_name: str, initial_world=None, initial_settin
 
             elif event == "generate_people":
                 update_simulation_config(values)
-                regenerate_people(values)
+                if regenerate_people(values):
+                    update_people_table()
 
             elif event == "preview_people":
                 preview_people(values)
+
+            elif event == "preview_person":
+                preview_person(values)
 
             elif event == "simulate_workforce":
                 update_simulation_config(values)

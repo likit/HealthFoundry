@@ -20,7 +20,7 @@ from healthfoundry.domain.organization import (
     OrganizationalUnit,
     OrganizationUnitId,
 )
-from healthfoundry.domain.person import Person, PersonId
+from healthfoundry.domain.person import Gender, Person, PersonId
 from healthfoundry.domain.workforce import WorkforceEvent
 
 
@@ -111,6 +111,7 @@ class World:
                 item["given_name"],
                 item["family_name"],
                 date.fromisoformat(item["date_of_birth"]) if item["date_of_birth"] else None,
+                Gender(item.get("gender", Gender.UNKNOWN.value)),
             )
             for item in data["people"]
         )
