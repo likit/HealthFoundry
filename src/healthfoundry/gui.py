@@ -399,7 +399,20 @@ def _run_settings(sg, store, world_name: str, initial_world=None, initial_settin
     ]
     layout = [
         [sg.Text("HealthFoundry", font=("Any", 24, "bold"))],
-        [sg.TabGroup([[sg.Tab("World", world_tab), sg.Tab("Organization", organization_tab), sg.Tab("People", people_tab), sg.Tab("Workforce", workforce_tab), sg.Tab("Assessments", assessment_tab), sg.Tab("Export", export_tab)]], font=("Any", 18, "bold"), expand_x=True)],
+        [sg.TabGroup(
+            [[
+                sg.Tab("World", world_tab),
+                sg.Tab("Organization", organization_tab),
+                sg.Tab("People", people_tab),
+                sg.Tab("Workforce", workforce_tab),
+                sg.Tab("Assessments", assessment_tab),
+                sg.Tab("Export", export_tab),
+            ]],
+            key="-TABGROUP-",
+            enable_events=True,
+            font=("Any", 18, "bold"),
+            expand_x=True,
+        )],
         [sg.Text("", key="status", font=label_font, size=(100, 2))],
         [sg.Button("Save", key="save_world", font=button_font)],
         [sg.Button("Exit", font=button_font)],
@@ -918,7 +931,12 @@ def _run_settings(sg, store, world_name: str, initial_world=None, initial_settin
         if event in (sg.WIN_CLOSED, "Exit"):
             break
         try:
-            if event == "new_world":
+            if event == "-TABGROUP-":
+                # Tk on macOS can defer repainting notebook content after the
+                # first visit. Flush pending redraw work on every tab change.
+                window.TKroot.update_idletasks()
+
+            elif event == "new_world":
                 simulation_config = SimulationConfig(
                     random_seed=int(values["seed"]),
                     start_date=date.today(),
